@@ -20,6 +20,13 @@
 // @grant		GM_deleteValue
 // @grant		GM_xmlhttpRequest
 // @grant		GM_getResourceURL
+// @grant		GM.info
+// @grant		GM.setValue
+// @grant		GM.getValue
+// @grant		GM.deleteValue
+// @grant		GM.xmlhttpRequest
+// @grant		GM.getResourceURL
+// @grant		unsafeWindow
 // ==/UserScript==
 
 var version = '3.19';
@@ -70,17 +77,19 @@ var version = '3.19';
 /*******************************************************************************************************************************
  * Global stuff
  *******************************************************************************************************************************/
-var uw = unsafeWindow || window, $ = uw.jQuery || jQuery, DATA, GM;
+var uw = unsafeWindow || window, $ = uw.jQuery || jQuery, DATA, GM_enabled;
 
 // GM-API?
-GM = (typeof GM_info === 'object');
+GM_enabled = (typeof GM_info === 'object'); // old greasemonkey support
+if (!GM_enabled)
+    GM_enabled = (typeof GM.info === 'object'); // greasemonkey 4+
 
 console.log('%c|= DIO-Tools is active =|', 'color: green; font-size: 1em; font-weight: bolder; ');
 
 function loadValue(name, default_val){
     var value;
-    if(GM){
-        value = GM_getValue(name, default_val);
+    if(GM_enabled){
+        value = GM.getValue(name, default_val);
     } else {
         value = localStorage.getItem(name) || default_val;
     }
@@ -92,7 +101,7 @@ function loadValue(name, default_val){
 }
 
 // LOAD DATA
-if(GM && (uw.location.pathname.indexOf("game") >= 0)){
+if(GM_enabled && (uw.location.pathname.indexOf("game") >= 0)){
     var WID = uw.Game.world_id, MID = uw.Game.market_id, AID = uw.Game.alliance_id;
 
     //GM_deleteValue(WID + "_bullseyeUnit");
@@ -108,7 +117,8 @@ if(GM && (uw.location.pathname.indexOf("game") >= 0)){
 
         error: loadValue('error', '{}'),
 
-        spellbox  :	loadValue("spellbox", '{ "top":"23%", "left": "-150%", "show": false }'),
+        //spellbox  :	loadValue("spellbox", '{ "top":"23%", "left": "-150%", "show": false }'),
+        spellbox  :	loadValue("spellbox", '{ "top": "137px", "right": "5px;", "show": false }'),
         commandbox: loadValue("commandbox" , '{ "top":55, "left": 250 }'),
         tradebox  :	loadValue("tradebox", '{ "top":55, "left": 450 }'),
 
@@ -142,19 +152,19 @@ if(GM && (uw.location.pathname.indexOf("game") >= 0)){
     if(typeof DATA.options.twn == 'boolean') {
         DATA.options.tic = DATA.options.til = DATA.options.tim = DATA.options.twn; delete DATA.options.twn;
     }
-    if(GM) GM_deleteValue("notification");
+    if(GM_enabled) GM.deleteValue("notification");
 }
 
 // GM: EXPORT FUNCTIONS
 uw.saveValueGM = function(name, val){
     setTimeout(function(){
-        GM_setValue(name, val);
+        GM.setValue(name, val);
     }, 0);
 };
 
 uw.deleteValueGM = function(name){
     setTimeout(function(){
-        GM_deleteValue(name);
+        GM.deleteValue(name);
     },0);
 };
 
@@ -203,7 +213,7 @@ function appendScript(){
         dioscript.id = 'diotools';
 
         time_a = uw.Timestamp.client();
-        dioscript.textContent = DIO_GAME.toString().replace(/uw\./g, "") + "\n DIO_GAME('"+ version +"', "+ GM +", '" + JSON.stringify(DATA).replace(/'/g, "##") + "', "+ time_a +");";
+        dioscript.textContent = DIO_GAME.toString().replace(/uw\./g, "") + "\n DIO_GAME('"+ version +"', "+ GM_enabled +", '" + JSON.stringify(DATA).replace(/'/g, "##") + "', "+ time_a +");";
         document.body.appendChild(dioscript);
     } else {
         setTimeout(function(){
@@ -7737,8 +7747,16 @@ function DIO_GAME(version, gm, DATA, time_a) {
                     saveValue("spellbox", JSON.stringify(spellbox));
                 }
                 Spellbox.change();
+                if ($('#ui_box .btn_gods_spells').hasClass('active')) {
+                    $('#ui_box .gods_spells_menu').css({
+                        display: "block"
+                    });
+                }
             });
             $.Observer(uw.GameEvents.ui.layout_gods_spells.state_changed).subscribe('DIO_SPELLBOX_CLOSE', function () {
+                $('#ui_box .gods_spells_menu').css({
+                    display: "none"
+                });
                 spellbox.show = false;
                 saveValue("spellbox", JSON.stringify(spellbox));
             });
@@ -7764,21 +7782,41 @@ function DIO_GAME(version, gm, DATA, time_a) {
                     // Don't hide hero box, unit time box and hero coin box from GRC
                 '#ui_box .nui_right_box { overflow: visible; } ' +
                     // Hide negative spells
-                '#ui_box .bolt, #ui_box .earthquake, #ui_box .pest { display: none } ' +
+                '#ui_box .bolt, #ui_box .earthquake, #ui_box .pest { display: none; } ' +
                     // Change spell order
                 '#ui_box .god_container { float: left } ' +
-                '#ui_box .god_container[data-god_id="zeus"], #ui_box .god_container[data-god_id="athena"] { float: none } ' +
+                '#ui_box .god_container[data-god_id="zeus"], #ui_box .god_container[data-god_id="athena"] { float: none; } ' +
                     // Remove background
                 '#ui_box .powers_container { background: none !important } ' +
                     // Hide god titles
                 '#ui_box .content .title { display: none !important } ' +
+                    // content header positioning
+                '#ui_box .content .header { padding-top: 0px; background: none !important; margin-top: -8px; } ' +
+                '#ui_box .content .header .info_icon { margin-top: -40px; z-index: 6; } ' +
+                    // Close Button positioning
+                '#ui_box .gods_spells_menu .middle .content .header .btn_close { position:absolute; z-index:8; margin-left: -16px; margin-top: 13px; } ' +
                     // Hide border elements
-                '#ui_box .gods_spells_menu .left, #ui_box .gods_spells_menu .right, #ui_box .gods_spells_menu .top, #ui_box .gods_spells_menu .bottom { display: none } ' +
+                '#ui_box .gods_spells_menu .left, #ui_box .gods_spells_menu .right, #ui_box .gods_spells_menu .top, #ui_box .gods_spells_menu .bottom { display: none; } ' +
                     // Layout
                 '#ui_box .gods_area { height:150px } ' +
 
-                '#ui_box .gods_spells_menu { width: 134px; position:absolute; z-index:5000; padding:30px 0px 0px -4px } ' +
-                '#ui_box .gods_spells_menu .content { background:url(https://gpall.innogamescdn.com/images/game/layout/power_tile.png) 1px 4px; overflow:auto; margin:0 0 0px 0px; border:3px inset rgb(16, 87, 19); border-radius:10px } ' +
+                    // Spell Positioning
+                '#ui_box .god_container[data-god_id="poseidon"] { position: relative; top: 4px; } ' +
+
+                '#ui_box .god_container[data-god_id="zeus"] { position: relative; top: 17px; } ' +
+                '#ui_box .god_container[data-god_id="zeus"] .power_icon30x30 { margin-left: -78px; } ' +
+
+                '#ui_box .god_container[data-god_id="hera"] { position: relative; top: 18px; } ' +
+
+                '#ui_box .god_container[data-god_id="athena"] { position: relative; top: 18px; } ' +
+
+                '#ui_box .god_container[data-god_id="hades"] { position: relative; top: 18px; } ' +
+
+                '#ui_box .god_container[data-god_id="artemis"] { position: relative; top: 17px; } ' +
+
+                    // spellbox positioning
+                '#ui_box .gods_spells_menu { width: 134px; position:absolute; z-index:4; padding:30px 0px 0px -4px; top: 134px; } ' +
+                '#ui_box .gods_spells_menu .content { background:url(https://gpall.innogamescdn.com/images/game/layout/power_tile.png) 1px 4px; overflow: hidden; margin:0 0 0px 0px; border:3px inset rgb(16, 87, 19); border-radius:10px; } ' +
 
                 '#ui_box .nui_units_box { display:block; margin-top:-8px; position:relative } ' +
                 '#ui_box .nui_units_box .bottom_ornament { margin-top:-28px; position: relative } ' +
@@ -7792,7 +7830,7 @@ function DIO_GAME(version, gm, DATA, time_a) {
                 opacity: 0.7,
                 stop: function () {
                     spellbox.top = this.style.top;
-                    spellbox.left = this.style.left;
+                    spellbox.right = this.style.right;
 
                     saveValue("spellbox", JSON.stringify(spellbox));
                 }
@@ -7801,8 +7839,21 @@ function DIO_GAME(version, gm, DATA, time_a) {
 
             // Position
             $('#ui_box .gods_spells_menu').css({
-                left: spellbox.left,
+                right: spellbox.right,
                 top: spellbox.top
+            });
+            $('#ui_box .gods_spells_menu .content').css({
+                height: "233px"
+            });
+
+            // not visible by default
+            $('#ui_box .gods_spells_menu').css({
+                display: "none"
+            });
+
+            // unit_box fix
+            $('#ui_box .nui_units_box').css({
+                marginTop: "0px"
             });
 
             // Active at game start?
@@ -7815,8 +7866,8 @@ function DIO_GAME(version, gm, DATA, time_a) {
 
             // Position
             $('#ui_box .gods_spells_menu').css({
-                left: "auto",
-                top: "150px"
+                right: "5px",
+                top: String(parseInt($('#favor_circular_progress').offset().top)-5)+"px"
             });
 
             //$("#ui_box .gods_spells_menu").appendTo('gods_area'); // ?
